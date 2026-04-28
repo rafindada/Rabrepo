@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Fargate with ALB using existing VPC, subnets, SG, execution role, and ECR
+
+Parameters:
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-0a43371746af7e3a4  # 🔹 REPLACE
+
+  PublicSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-082cd054f9f266f3d,subnet-0279a0a31c14bd90f # 🔹 ALB subnets
+
+  PrivateSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-020ae13fd17ec153d,subnet-0279a0a31c14bd90f  # 🔹 ECS subnets (can reuse public if needed)
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-098da922a917bfb3d   # 🔹 existing SG
+
+  ExecutionRoleArn:
+    Type: String
+    Default: arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ContainerImage:
+    Type: String
+    Default: 237183048886.dkr.ecr.us-east-1.amazonaws.com/hello-world-ecs
+
+  ContainerPort:
+    Type: Number
+    Default: 80
+
+Resources:
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
+  # -----------------------
+  # Load Balancer
+  # -----------------------
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ecs-alb
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnets
+      SecurityGroups:
+        - !Ref SecurityGroupId
+      Type: application
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip   # REQUIRED for Fargate
+      HealthCheckPath: /
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  # -----------------------
+  # ECS Task Definition
+  # -----------------------
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+
+      ContainerDefinitions:
+        - Name: app-container
+          Image: !Ref ContainerImage
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+
+  # -----------------------
+  # ECS Service
+  # -----------------------
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 2
+
+      TaskDefinition: !Ref TaskDefinition
+
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED   # 🔹 use ENABLED if using public subnets
+          Subnets: !Ref PrivateSubnets
+          SecurityGroups:
+            - !Ref SecurityGroupId
+
+      LoadBalancers:
+        - ContainerName: app-container
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+
+  LoadBalancerDNS:
+    Description: Access your app here
+    Value: !GetAtt LoadBalancer.DNSName
