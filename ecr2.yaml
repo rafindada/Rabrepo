@@ -21,7 +21,7 @@ Parameters:
 
   ContainerImage:
     Type: String
-    Default: 237183048886.dkr.ecr.us-east-1.amazonaws.com/hello-world-ecs  # 🔹 YOUR ECR IMAGE
+    Default: 237183048886.dkr.ecr.us-east-1.amazonaws.com/hello-world-ecs:latest2  # 🔹 YOUR ECR IMAGE
 
   ContainerPort:
     Type: Number
