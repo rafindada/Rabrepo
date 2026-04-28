@@ -13,7 +13,7 @@ Parameters:
 
   PrivateSubnets:
     Type: List<AWS::EC2::Subnet::Id>
-    Default: subnet-020ae13fd17ec153d,subnet-0279a0a31c14bd90f   # 🔹 ECS subnets
+    Default: subnet-020ae13fd17ec153d,subnet-0ff92c4321ddcd066   # 🔹 ECS subnets
 
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
